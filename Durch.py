@@ -1,33 +1,40 @@
 import csv
 import time
 from urllib.parse import urljoin
+import time, random
 from seleniumbase import Driver
+from selenium import webdriver
+options = webdriver.ChromeOptions()
+driver = webdriver.Chrome(options=options)
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--headless=new")
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 driver = Driver(uc=True)
 base_url = "https://www.dutchmanenterprises.com/inventory/?/listings/for-sale/all?DSCompanyID=127470&settingscrmid=19663818&IsSegmentSearch=1&dlr=1"
 driver.uc_open_with_reconnect(base_url, 4)
 time.sleep(10)
+driver.execute_script("window.scrollBy(0, 300)")
 product_urls = set()
-fieldnames = ["URL", "Title", "Category", "Price", "Stock Number", "Length", "Composition", "VIN", "Number of Rear Axles", "Updated", "Description", "Location", "Floor Type" ,  "Gross Vehicle Weight", "Seller" ,"Type of Neck", '','Width' ]
+fieldnames = ["URL", "Title", "Category", "Price", "Stock Number", "Length", "Composition", "VIN", "Number of Rear Axles", "Updated", "Description", "Location", "Floor Type" ,  "Gross Vehicle Weight", "Seller" ,"Type of Neck", '','Width', "PDP_Title", "PDP_Category", "PDP_Price", "PDP_Stock Number", "PDP_Length", "PDP_Composition", "PDP_VIN", "PDP_Number of Rear Axles", "PDP_Description", "PDP_Location", "PDP_Floor Type" ,  "PDP_Gross Vehicle Weight", "PDP_Seller" ,"PDP_Type of Neck", '','PDP_Width', "PDP_Condition", "PDP_Year", "PDP_Manufacturer" ]
 all_data = []
 PDP_URLs=[]
 All_PLPs=[]
 All_PDPs=[]
+
 # Step 1: Extract URLs and PLP-only data
 while True:
     time.sleep(3)
     product_cards = driver.find_elements("css selector", ".list-container .list-listing-card-wrapper") #Get All Trailers
-    # print(product_cards)
    
     for card in product_cards: #Through each trailer
-            time.sleep(1)
+            time.sleep(random.uniform(1.5, 3.0))
             href_elem = card.find_element("css selector", ".listing-image-container a")
             href= href_elem.get_attribute("href")  #Get Link to PDP
-            # print(href)
 
             if href:
                 plp_data ={}
+                PDP_URLs.append(href)
                 plp_data["URL"]=href
                 Btn=card.find_element("css selector", ".specs-button")
                 Btn.click()
@@ -36,8 +43,7 @@ while True:
                 plp_data["Category"] = card.find_element("css selector", ".listing-category").text.strip()
                 plp_data["Price"]=card.find_element("css selector", ".price-contain .price").text.strip()
                 
-                
-                # Specs.pop()
+            
                 for steps in Specs:
                     key_temp,value=steps.find_element("css selector", ".spec-label").text.strip(), steps.find_element("css selector", ".spec-value").text.strip()
                     key=key_temp[:-1]
@@ -48,55 +54,43 @@ while True:
                 plp_data[Seller]=value
                 All_PLPs.append(plp_data)
 
-    with open("trailers.csv", "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(All_PLPs)   
+    
+    button_next=driver.find_element("css selector", '[aria-label="Next Page"]')
+    Present=True
+    if(button_next.is_enabled()):
+        button_next.click()
 
-            
-    # for Page in PDP_URLs:
-    #         driver.get(Page)
-    #         time.sleep(6)
-    #         pdp_data={}
-    #         pdp_data["PDP_Title"]=driver.find_element("tag name","h1").text.strip()
-    #         pdp_data["PDP_Condition"]=driver.find_element("css selector","h1 span.condition").text
-    #         pdp_data["PDP_Price"]=driver.find_element("css selector"," span.price").text.strip()
-    #         info_blocks = driver.find_elements("css selector", ".item-information-container .information")
-    #         for info in info_blocks:
-    #             text = info.text.strip()
-    #             if ":" in text:
-    #                 key, value = text.split(":", 1)
-    #                 key = key.strip().title()   
-    #                 pdp_data[key]=value     
-    #         container=driver.find_element("css selector", ".toastui-editor-contents")
-    #         elements=container.find_elements("tag name", "p")
-    #         list=[]
-    #         for i in elements:
-    #             test=i.text.strip()
-    #             list.append(test)
-    #         pdp_data["Trailer Overview"]=list
+    else:        
+        Present=False
 
-    #         AdditionalSpecs_List=driver.find_elements("css selector", ".description-details-container .detail")
+    if(Present==False):
+        for Page in PDP_URLs:
 
-    #         list=[]
-    #         for items in AdditionalSpecs_List:
-    #             label = items.find_element("css selector", ".label").text.strip()
-    #             value = items.find_element("css selector", ".value").text.strip()
-    #             print(label,value)
-
-    #             list.append(f"{label}{value}")
-
-    #         pdp_data["Additional Specs"]=list
-    #         All_PDPs.append(pdp_data)
+            driver.get(Page)
+            time.sleep(random.uniform(1.5, 3.0))
+            pdp_data={}
+            pdp_data["PDP_Title"]=driver.find_element("css selector",".detail__title").text.strip()
+            pdp_data["PDP_Category"]=driver.find_element("css selector",".detail__category").text.strip()
+            pdp_data["PDP_Price"]=driver.find_element("css selector",".listing-prices__retail-price").text.strip()
+            pdp_data["PDP_Location"]=driver.find_element("css selector", ".dealer-contact__location").text.strip()
+            content= driver.find_elements("css selector", ".detail__specs-wrapper .detail__specs-label")
+            Values= driver.find_elements("css selector", ".detail__specs-wrapper .detail__specs-value")
+            for x,y in zip(content,Values):
+                pdp_data["PDP_"+x.text.strip()]=y.text.strip()
+            print(pdp_data)
+            All_PDPs.append(pdp_data)
             
     
-    # for plp, pdp in zip(All_PLPs, All_PDPs):
-    #     new_data = {**plp, **pdp}
-    #     all_data.append(new_data)
+            for plp, pdp in zip(All_PLPs, All_PDPs):
+                new_data = {**plp, **pdp}
+                all_data.append(new_data)
               
 
                 
-    
+            with open("trailers.csv", "w", newline="", encoding="utf-8") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(all_data)  
     
 
            
